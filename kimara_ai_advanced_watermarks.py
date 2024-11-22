@@ -406,11 +406,14 @@ class KimaraAIWatermarker:
         # Convert the PyTorch tensor to a NumPy array and scale to uint8
         image_pil = Image.fromarray(np.clip(image_tensor.cpu().numpy().squeeze() * 255, 0, 255).astype(np.uint8)).convert('RGBA')
 
+        # Create a transparent layer for the text
+        transparent_layer = Image.new('RGBA', image_pil.size, (0, 0, 0, 0))
+
         # Set text color with opacity
         text_color = (255, 255, 255, text_opacity)
 
         # Initialize drawing context
-        draw = ImageDraw.Draw(image_pil)
+        draw = ImageDraw.Draw(transparent_layer)
 
         # Load the specified font or fall back to the default font
         try:
@@ -429,8 +432,11 @@ class KimaraAIWatermarker:
         # Draw the text on the image
         draw.text((pos_x, pos_y), text, fill=text_color, font=font)
 
+        # Merge the image and text layer
+        image_pil_with_text = Image.alpha_composite(image_pil, transparent_layer).convert('RGB')
+
         # Convert the result back to tensor and return with text width
-        image_tensor = torch.from_numpy(np.array(image_pil).astype(np.float32) / 255.0).unsqueeze(0)
+        image_tensor = torch.from_numpy(np.array(image_pil_with_text).astype(np.float32) / 255.0).unsqueeze(0)
         return image_tensor, text_width
         
     def add_logo_image(self, image_tensor, logo_image_tensor, watermark_x, watermark_y, opacity, rotation, mask=None):
