@@ -59,7 +59,8 @@ class KimaraAIWatermarker:
         self.text_y = None
         self.x_direction = -1
         self.y_direction = -1
-        self.rotation = 0      
+        self.rotation = 0
+        self.previous_resolution = None  
 
     @staticmethod
     def INPUT_TYPES():
@@ -76,8 +77,8 @@ class KimaraAIWatermarker:
                 "font": ("STRING", {"default": "assets/fonts/DMSans-VariableFont_opsz,wght.ttf"}),
                 "font_size": ("INT", {"default": 16, "min": 1, "max": 256, "step": 1}),
                 "logo_scale_percentage": ("INT", {"default": 25, "min": 1, "max": 100, "step": 1}),
-                "x_padding": ("INT", {"default": 69, "min": 0, "max": MAX_RESOLUTION, "step": 5}),
-                "y_padding": ("INT", {"default": 69, "min": 0, "max": MAX_RESOLUTION, "step": 5}),
+                "x_padding": ("INT", {"default": 20, "min": 0, "max": MAX_RESOLUTION, "step": 5}),
+                "y_padding": ("INT", {"default": 20, "min": 0, "max": MAX_RESOLUTION, "step": 5}),
                 "rotation": ("INT", {"default": 0, "min": -180, "max": 180, "step": 5}),
                 "opacity": ("FLOAT", {"default": 40, "min": 0, "max": 100, "step": 5})
             }
@@ -196,8 +197,7 @@ class KimaraAIWatermarker:
             None. This method updates the instance variables for watermark and text positions in-place.
         """
 
-        print("1 WATERMARK_X & Y: ", self.watermark_x, self.watermark_y, "TEXT_X & Y: ", self.text_x, self.text_y)
-        
+       
         if self.watermark_x is None or self.watermark_y is None or not move_watermark:
             self.watermark_x = image_width - resized_logo_width - x_padding
             self.watermark_y = image_height - resized_logo_height - y_padding - font_size
@@ -205,8 +205,6 @@ class KimaraAIWatermarker:
         if self.text_x is None or self.text_y is None or not move_watermark:
             self.text_x = image_width - x_padding
             self.text_y = image_height - y_padding
-
-        print("2 WATERMARK_X & Y: ", self.watermark_x, self.watermark_y, "TEXT_X & Y: ", self.text_x, self.text_y)
 
     def apply_watermark_to_images(self, image, move_watermark, resized_logo_image, resized_logo_width, resized_logo_height, watermark_text, font, font_size, text_opacity, opacity, move_watermark_step,
                                 logo_image, mask, x_padding, y_padding, image_width, image_height, x_direction, y_direction):
@@ -300,6 +298,20 @@ class KimaraAIWatermarker:
             A tuple containing the updated coordinates for the watermark and text (next_wm_x, next_wm_y, next_text_x, next_text_y), 
             as well as the updated X and Y directions and the new rotation value. These values are used for the next iteration of watermark placement.
         """
+
+        current_resolution = (image_width, image_height)
+
+        # Reset the watermark position if resolution changes
+        if self.previous_resolution != current_resolution:
+            self.watermark_x = image_width - resized_logo_width - x_padding
+            watermark_x = self.watermark_x
+            self.watermark_y = image_height - resized_logo_height - y_padding - font_size
+            watermark_y = self.watermark_y
+            self.text_x = image_width - x_padding
+            text_x = self.text_x
+            self.text_y = image_height - y_padding
+            text_y = self.text_y
+            self.previous_resolution = current_resolution
 
         # Define image padded borders
         image_top = 0 + y_padding
