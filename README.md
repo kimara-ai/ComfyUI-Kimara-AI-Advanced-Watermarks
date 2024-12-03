@@ -1,38 +1,40 @@
 # Kimara.ai's Advanced Watermarking Tools
 
-**NOTE**: This custom node is still in development.
+_**NOTE**: If you encounter any issues or errors, or have a suggestion for a feature, please create an issue on Github._
 
-**NOTE**: This is just a quick ChatGPT assisted README-boilerplate.
+![Moving watermark demo](assets/images/demo_moving_watermark.webp)
 
-The **KimaraAIWatermarker** custom node allows you to apply watermark text and logo overlays to images (or a batch of images). It provides features like customizable watermark movement, rotation, and opacity. You can also apply both text and logo watermarks simultaneously, with fine-tuned control over positioning and scaling.
+## Nodes
+
+- Kimara.ai/KimaraAIWatermarker
+- Kimara.ai/KimaraAIBatchImages
+
+The **KimaraAIWatermarker** custom node allows you to apply watermark text and logo overlays to images. Optionally, the watermark can be moved by the _move_watermark_step_ amount of pixels after each generated image. To apply a moving watermark to a list of images, use the **KimaraAIBatchImages** node to concatenate the list into a single tensor, then use that as an input for the watermark node, as shown in the example image below.
+
+![Moving watermark demo](assets/images/example.png)
 
 ## Features
 
 - Add watermark text to images.
 - Add logo watermarks to images.
-- Move watermark across the image in steps.
-- Rotate and adjust opacity of watermarks.
-- Scale logo watermark based on image size.
+- Move watermark across images in customizable steps.
+- Adjust opacity of watermark image and text.
+- Adjust size of the watermark image and font.
+- Use custom fonts by setting the font path.\*
 - Batch processing for multiple images.
 
-## Installation
+_\* When running ComfyUI in a container, the font path in /assets/fonts must be the full path from the workdir, e.g., custom_nodes/ComfyUI-Kimara-AI-Advanced-Watermarks/assets/fonts/DMSans-VariableFont_opsz,wght.ttf._
 
-Ensure you have the required dependencies installed. If you're using Python, you can install them via `requirements.txt`.
-
-```
-pip install -r requirements.txt
-```
-
-### Input Parameters
+### Input Parameters (KimaraAIWatermarker)
 
 | Parameter               | Type               | Description                                                                                           |
 | ----------------------- | ------------------ | ----------------------------------------------------------------------------------------------------- |
-| `image`                 | `IMAGE`            | The image or list of images to which the watermark will be applied.                                   |
+| `image`                 | `IMAGE`            | Input image / batch of images.                                                                        |
 | `move_watermark`        | `BOOLEAN`          | Whether the watermark should move across the image.                                                   |
-| `logo_image`            | `IMAGE` (optional) | The image to be used as the logo watermark. If not provided, an empty image will be used.             |
+| `logo_image`            | `IMAGE` (optional) | The image to be used as the logo watermark. If not provided, an empty transparent image will be used. |
 | `mask`                  | `MASK` (optional)  | The mask to apply to the logo image for transparency effects.                                         |
 | `move_watermark_step`   | `INT`              | The number of pixels the watermark moves in each step (default: 10).                                  |
-| `watermark_text`        | `STRING`           | The text to use as the watermark (default: None). If not provided, no text watermark will be applied. |
+| `watermark_text`        | `STRING`           | The text to use as the watermark. If not provided, no text watermark will be applied.                 |
 | `font`                  | `STRING`           | The font used for the watermark text (default: `assets/fonts/DMSans-VariableFont_opsz,wght.ttf`).     |
 | `font_size`             | `INT`              | The font size for the watermark text (default: 16).                                                   |
 | `logo_scale_percentage` | `INT`              | The percentage of the image width to scale the logo watermark (default: 25).                          |
@@ -40,6 +42,12 @@ pip install -r requirements.txt
 | `y_padding`             | `INT`              | Vertical padding for watermark positioning (default: 20).                                             |
 | `rotation`              | `INT`              | The rotation angle of the watermark (default: 0).                                                     |
 | `opacity`               | `FLOAT`            | The opacity of the watermark (0 is fully visible, 100 is fully transparent).                          |
+
+### Output (KimaraAIWatermarker)
+
+| Parameter | Type   | Description         |
+| --------- | ------ | ------------------- |
+| `IMAGES`  | `LIST` | Image(s) in a list. |
 
 #### License
 
