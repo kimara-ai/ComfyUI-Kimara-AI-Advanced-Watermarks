@@ -126,6 +126,7 @@ class KimaraAIWatermarker:
             7. Returns the list of watermarked images after applying both text and logo watermarks.
         """
 
+
         # Fallbacks for missing inputs
         logo_image = logo_image if logo_image is not None else self.generate_empty_image(1, 1)
         watermark_text = watermark_text if watermark_text is not None else ""
@@ -139,18 +140,12 @@ class KimaraAIWatermarker:
         text_opacity = self.calculate_text_opacity(opacity)
         font_size = self.adjust_font_size(image_width, font_size)
 
-        
-
-        # Initialize watermark and text positions if not provided
-        self.initialize_positions(image_width, image_height, resized_logo_width, resized_logo_height, font_size, x_padding, y_padding, move_watermark)
-
+        if not move_watermark or any(value is None for value in [self.watermark_x, self.watermark_y, self.text_x, self.text_y]):
+            self.reset_position(image_width, image_height, resized_logo_width, resized_logo_height, font_size, x_padding, y_padding)
+            
         # Watermarking loop
-        x_direction, y_direction = self.x_direction, self.y_direction
         images = self.apply_watermark_to_images(image, move_watermark, resized_logo_image, resized_logo_width, resized_logo_height, watermark_text, font, font_size, text_opacity, opacity, move_watermark_step,
-                                                logo_image, mask, x_padding, y_padding, image_width, image_height, x_direction, y_direction)
-
-        # Update directions after the loop
-        self.x_direction, self.y_direction = x_direction, y_direction
+                                                logo_image, mask, x_padding, y_padding, image_width, image_height)
 
         return (images,)
 
@@ -177,37 +172,8 @@ class KimaraAIWatermarker:
         width_baseline = 800
         return int(image_width / width_baseline * font_size)
 
-    def initialize_positions(self, image_width, image_height, resized_logo_width, resized_logo_height, font_size, x_padding, y_padding, move_watermark):
-        """
-        Initializes the watermark and text positions based on the image dimensions and padding values.
-        If the positions are not already set, they will be calculated to position the watermark and text
-        in the bottom-right corner of the image, with optional padding.
-
-        Args:
-            image_width: The width of the base image.
-            image_height: The height of the base image.
-            resized_logo_width: The width of the resized logo.
-            resized_logo_height: The height of the resized logo.
-            font_size: The size of the text font for watermark text.
-            x_padding: Horizontal padding to offset watermark and text from the image edges.
-            y_padding: Vertical padding to offset watermark and text from the image edges.
-            move_watermark: Whether to recalculate positions even if they are already set.
-            
-        Returns:
-            None. This method updates the instance variables for watermark and text positions in-place.
-        """
-
-       
-        if self.watermark_x is None or self.watermark_y is None or not move_watermark:
-            self.watermark_x = image_width - resized_logo_width - x_padding
-            self.watermark_y = image_height - resized_logo_height - y_padding - font_size
-
-        if self.text_x is None or self.text_y is None or not move_watermark:
-            self.text_x = image_width - x_padding
-            self.text_y = image_height - y_padding
-
     def apply_watermark_to_images(self, image, move_watermark, resized_logo_image, resized_logo_width, resized_logo_height, watermark_text, font, font_size, text_opacity, opacity, move_watermark_step,
-                                logo_image, mask, x_padding, y_padding, image_width, image_height, x_direction, y_direction):
+                                logo_image, mask, x_padding, y_padding, image_width, image_height):
         """
         Applies watermark text and a logo image to a batch of images, with optional movement of the watermark.
 
@@ -229,8 +195,6 @@ class KimaraAIWatermarker:
             y_padding: Vertical padding for positioning the watermark and text.
             image_width: The width of the base image.
             image_height: The height of the base image.
-            x_direction: The current horizontal direction for moving the watermark.
-            y_direction: The current vertical direction for moving the watermark.
 
         Returns:
             A list of watermarked images, each with the applied watermark text and logo.
@@ -239,12 +203,7 @@ class KimaraAIWatermarker:
         images = []
         for idx, image in enumerate(image):
             if move_watermark:
-                self.watermark_x, self.watermark_y, self.text_x, self.text_y, x_direction, y_direction, self.rotation = \
-                    self.calculate_watermark_position(
-                        self.watermark_x, self.watermark_y, resized_logo_width, resized_logo_height, 
-                        self.text_x, self.text_y, 0, font_size, image_width, image_height, 
-                        move_watermark_step, x_direction, y_direction, x_padding, y_padding, self.rotation
-                    )
+                self.watermark_x, self.watermark_y, self.text_x, self.text_y, self.rotation = self.calculate_watermark_position(resized_logo_width, resized_logo_height, 0, font_size, image_width, image_height, move_watermark_step, x_padding, y_padding)
 
             # Apply text and logo to the image
             image, text_width = self.draw_watermark_text(image, watermark_text, font_size, self.text_x, self.text_y, font, text_opacity)
@@ -270,47 +229,12 @@ class KimaraAIWatermarker:
         # Returns image's batch amount, height and width
         return (image.shape[0], image.shape[1], image.shape[2])
 
-    def calculate_watermark_position (self, watermark_x, watermark_y, resized_logo_width, resized_logo_height, text_x, text_y, text_width, font_size, image_width, image_height, move_watermark_step, x_direction, y_direction, x_padding, y_padding, rotation):
-        
-        """
-        Used only if move_watermark is True.
-        Calculates suitable coordinates for the next watermark location, ensuring that the watermark stays within the image boundaries, especially in larger batch sizes.
-
-        Args:
-            watermark_x: The current X-coordinate for the watermark position.
-            watermark_y: The current Y-coordinate for the watermark position.
-            resized_logo_width: The width of the resized logo image.
-            resized_logo_height: The height of the resized logo image.
-            text_x: The current X-coordinate for the text position.
-            text_y: The current Y-coordinate for the text position.
-            text_width: The width of the drawn text.
-            font_size: The font size used for the text.
-            image_width: The width of the base image.
-            image_height: The height of the base image.
-            move_watermark_step: The step size for moving the watermark and text.
-            x_direction: The current X-direction (1 for right, -1 for left).
-            y_direction: The current Y-direction (1 for down, -1 for up).
-            x_padding: Horizontal offset to ensure watermark stays within bounds.
-            y_padding: Vertical offset to ensure watermark stays within bounds.
-            rotation: The current rotation applied to the watermark, to adjust position accordingly.
-
-        Returns:
-            A tuple containing the updated coordinates for the watermark and text (next_wm_x, next_wm_y, next_text_x, next_text_y), 
-            as well as the updated X and Y directions and the new rotation value. These values are used for the next iteration of watermark placement.
-        """
-
-        current_resolution = (image_width, image_height)
+    def calculate_watermark_position(self, resized_logo_width, resized_logo_height, text_width, font_size, image_width, image_height, move_watermark_step, x_padding, y_padding):
 
         # Reset the watermark position if resolution changes
+        current_resolution = (image_width, image_height)
         if self.previous_resolution != current_resolution:
-            self.watermark_x = image_width - resized_logo_width - x_padding
-            watermark_x = self.watermark_x
-            self.watermark_y = image_height - resized_logo_height - y_padding - font_size
-            watermark_y = self.watermark_y
-            self.text_x = image_width - x_padding
-            text_x = self.text_x
-            self.text_y = image_height - y_padding
-            text_y = self.text_y
+            self.reset_position(image_width, image_height, resized_logo_width, resized_logo_height, font_size, x_padding, y_padding)
             self.previous_resolution = current_resolution
 
         # Define image padded borders
@@ -319,58 +243,71 @@ class KimaraAIWatermarker:
         image_bottom = image_height - y_padding
         image_right = image_width - x_padding
 
-        # Calculate next positions based on the current direction and step
-        next_wm_x = watermark_x + x_direction * move_watermark_step
-        next_wm_y = watermark_y + y_direction * move_watermark_step
-        next_text_x = text_x + x_direction * move_watermark_step
-        next_text_y = text_y + y_direction * move_watermark_step
+        # Calculate next positions
+        next_wm_x, next_wm_y, next_text_x, next_text_y = self.calculate_next_positions(move_watermark_step)
 
-        # Define watermark and text bounding box coordinates
+        # Check for collisions and adjust position
+        next_wm_x, next_text_x = self.handle_x_collisions(next_wm_x, resized_logo_width, text_width, next_text_x, image_left, image_right, move_watermark_step)
+        next_wm_y, next_text_y = self.handle_y_collisions(next_wm_y, resized_logo_height, font_size, next_text_y, image_top, image_bottom, move_watermark_step)
+
+        return next_wm_x, next_wm_y, next_text_x, next_text_y, self.rotation
+
+    def reset_position(self, image_width, image_height, resized_logo_width, resized_logo_height, font_size, x_padding, y_padding):
+        # Reset positions of watermark and text when the resolution changes
+        self.watermark_x = image_width - resized_logo_width - x_padding
+        self.watermark_y = image_height - resized_logo_height - y_padding - font_size
+        self.text_x = image_width - x_padding
+        self.text_y = image_height - y_padding
+
+    def calculate_next_positions(self, move_watermark_step):
+        # Calculate the next positions for the watermark and text
+        next_wm_x = self.watermark_x + self.x_direction * move_watermark_step
+        next_wm_y = self.watermark_y + self.y_direction * move_watermark_step
+        next_text_x = self.text_x + self.x_direction * move_watermark_step
+        next_text_y = self.text_y + self.y_direction * move_watermark_step
+        return next_wm_x, next_wm_y, next_text_x, next_text_y
+
+    def handle_x_collisions(self, next_wm_x, resized_logo_width, text_width, next_text_x, image_left, image_right, move_watermark_step):
+        # Handle X-axis collisions and adjust position and direction
         wm_left = next_wm_x
         wm_right = next_wm_x + resized_logo_width
-        wm_top = next_wm_y
-        wm_bottom = next_wm_y + resized_logo_height
-
         text_left = next_text_x - text_width
         text_right = next_text_x
+
+        if min(wm_left, text_left) < image_left:
+            overlap_x = image_left - min(wm_left, text_left)
+            next_wm_x += (move_watermark_step - overlap_x) * -self.x_direction
+            next_text_x += (move_watermark_step - overlap_x) * -self.x_direction
+            self.x_direction = 1
+
+        if max(wm_right, text_right) > image_right:
+            overlap_x = max(wm_right, text_right) - image_right
+            next_wm_x += (move_watermark_step - overlap_x) * -self.x_direction
+            next_text_x += (move_watermark_step - overlap_x) * -self.x_direction
+            self.x_direction = -1
+
+        return next_wm_x, next_text_x
+
+    def handle_y_collisions(self, next_wm_y, resized_logo_height, font_size, next_text_y, image_top, image_bottom, move_watermark_step):
+        # Handle Y-axis collisions and adjust position and direction
+        wm_top = next_wm_y
+        wm_bottom = next_wm_y + resized_logo_height
         text_top = next_text_y - font_size
         text_bottom = next_text_y
 
-        # Check for collisions and adjust position accordingly
-        if min(wm_left, text_left) < image_left:
-            # Collision on the left side, reverse X direction
-            overlap_x = image_left - min(wm_left, text_left)
-            next_wm_x += (move_watermark_step - overlap_x) * -x_direction
-            next_text_x += (move_watermark_step - overlap_x) * -x_direction
-            x_direction = 1
-
-        if max(wm_right, text_right) > image_right:
-            # Collision on the right side, reverse X direction
-            overlap_x = max(wm_right, text_right) - image_right
-            next_wm_x += (move_watermark_step - overlap_x) * -x_direction
-            next_text_x += (move_watermark_step - overlap_x) * -x_direction
-            x_direction = -1
-
         if min(wm_top, text_top) < image_top:
-            # Collision on the top, reverse Y direction
             overlap_y = image_top - min(wm_top, text_top)
-            next_wm_y += (move_watermark_step - overlap_y) * -y_direction
-            next_text_y += (move_watermark_step - overlap_y) * -y_direction
-            y_direction = 1
+            next_wm_y += (move_watermark_step - overlap_y) * -self.y_direction
+            next_text_y += (move_watermark_step - overlap_y) * -self.y_direction
+            self.y_direction = 1
 
         if max(wm_bottom, text_bottom) > image_bottom:
-            # Collision on the bottom, reverse Y direction
             overlap_y = max(wm_bottom, text_bottom) - image_bottom
-            next_wm_y += (move_watermark_step - overlap_y) * -y_direction
-            next_text_y += (move_watermark_step - overlap_y) * -y_direction
-            y_direction = -1
+            next_wm_y += (move_watermark_step - overlap_y) * -self.y_direction
+            next_text_y += (move_watermark_step - overlap_y) * -self.y_direction
+            self.y_direction = -1
 
-        # Spin that shi- logo if rotation is applied
-        if rotation > 0:
-            rotation += rotation
-
-        # Returns integer values for next position, directions and amount of rotation for next loop
-        return int(next_wm_x), int(next_wm_y), int(next_text_x), int(next_text_y), x_direction, y_direction, rotation
+        return next_wm_y, next_text_y
 
     def resize_watermark_image(self, logo_image, original_logo_height, original_logo_width, logo_width):
 
