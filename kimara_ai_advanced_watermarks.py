@@ -1,9 +1,5 @@
 import torch
-import torch.nn.functional as F
-import torchvision.transforms as T
 from PIL import Image, ImageOps, ImageDraw, ImageFont
-import comfy
-import math
 import numpy as np
 
 from . import utils
@@ -75,7 +71,7 @@ class KimaraAIWatermarker:
                 "mask": ("MASK",),
                 "move_watermark_step": ("INT", {"default": 10, "min": 1, "max": 500, "step": 1}),
                 "watermark_text": ("STRING", {"multiline": False, "default": "Made by userxyz123", "lazy": True}),
-                "font": ("STRING", {"default": "custom_nodes/ComfyUI-Kimara-AI-Advanced-Watermarks/assets/fonts/DMSans-VariableFont_opsz,wght.ttf"}),
+                "font": ("STRING", {"default": "assets/fonts/DMSans-VariableFont_opsz,wght.ttf"}),
                 "font_size": ("INT", {"default": 16, "min": 1, "max": 256, "step": 1}),
                 "logo_scale_percentage": ("INT", {"default": 25, "min": 0, "max": 100, "step": 1}),
                 "x_padding": ("INT", {"default": 20, "min": 0, "max": 256, "step": 5}),
@@ -135,6 +131,8 @@ class KimaraAIWatermarker:
         _, image_height, image_width = utils.get_image_size(image)
         self.current_resolution = (image_width, image_height)
         watermark_width = utils.calculate_watermark_width(image_width, logo_scale_percentage)
+
+        self.rotation = rotation
 
         # Resize logo image and adjust font size
         resized_logo_image, resized_logo_width, resized_logo_height = self.resize_watermark_image(logo_image, watermark_width)               
@@ -283,34 +281,32 @@ class KimaraAIWatermarker:
 
         Args:
             :param logo_image: The image tensor to be resized.
-            :param original_logo_height: Original height of the logo image.
-            :param original_logo_width: Original width of the logo image.
             :param logo_width: Desired logo width. If 0, defaults to current resolution of the base image or original dimensions.
 
         Returns:
             A resized logo image tensor.
         """
+        # Convert to PIL
+        logo_image_pil = Image.fromarray(np.clip(logo_image.cpu().numpy().squeeze() * 255, 0, 255).astype(np.uint8))
 
         image_width, image_height = self.current_resolution
-        _, original_logo_height, original_logo_width = utils.get_image_size(logo_image)
+        original_logo_width, original_logo_height = logo_image_pil.size
 
         if logo_width <= 0:
             logo_width = image_width if original_logo_height < image_height else original_logo_width
-
+  
         # Calculate resize ratio
         ratio = min(logo_width / original_logo_width, image_height / original_logo_height)
-        new_width = round(original_logo_width * ratio)
-        new_height = round(original_logo_height * ratio)
+        new_width = int(original_logo_width * ratio)
+        new_height = int(original_logo_height * ratio)
 
-        # Resize the logo image
-        resized_logo_image = logo_image.permute(0, 3, 1, 2)  # Change to (N, C, H, W)
-        resized_logo_image = F.interpolate(resized_logo_image, size=(new_height, new_width), mode="nearest")
-        resized_logo_image = resized_logo_image.permute(0, 2, 3, 1)  # Change back to (N, H, W, C)
-        resized_logo_image = torch.clamp(resized_logo_image, 0, 1)  # Ensure values are within [0, 1]
+        # Resize using PIL
+        resized_logo_image_pil = logo_image_pil.resize((new_width, new_height), Image.Resampling.BICUBIC)
 
-        _, resized_logo_height, resized_logo_width = utils.get_image_size(resized_logo_image)
+        # Convert back to tensor
+        resized_logo_image = torch.from_numpy(np.array(resized_logo_image_pil).astype(np.float32) / 255.0).unsqueeze(0)
 
-        return resized_logo_image, resized_logo_width, resized_logo_height
+        return resized_logo_image, new_width, new_height
 
     def draw_watermark_text(self, image_tensor, text, font_size, font_path, opacity):
 
@@ -384,9 +380,6 @@ class KimaraAIWatermarker:
         image_pil = Image.fromarray(np.clip(image_tensor.cpu().numpy().squeeze() * 255, 0, 255).astype(np.uint8))
         logo_image_pil = Image.fromarray(np.clip(logo_image_tensor.cpu().numpy().squeeze() * 255, 0, 255).astype(np.uint8)).convert('RGBA')
 
-        # Rotate the logo image
-        logo_image_pil = logo_image_pil.rotate(self.rotation, expand=True)
-
         # Apply the mask (if provided)
         if mask is not None:
             mask_pil = Image.fromarray(np.clip(mask.cpu().numpy().squeeze() * 255, 0, 255).astype(np.uint8)).resize(logo_image_pil.size)
@@ -395,6 +388,10 @@ class KimaraAIWatermarker:
         _, _, _, alpha = logo_image_pil.split()
         alpha = alpha.point(lambda x: int(x * (1 - opacity / 100)))
         logo_image_pil.putalpha(alpha)
+
+        # Rotate the logo image
+        if self.rotation != 0:
+            logo_image_pil = logo_image_pil.rotate(self.rotation, expand=True)
 
         # Paste the logo onto the image
         image_pil.paste(logo_image_pil, (self.watermark_x, self.watermark_y), logo_image_pil)
