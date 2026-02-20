@@ -1,5 +1,5 @@
 [project]
-name = "comfyui-kimara-ai-advanced-watermarks"
+name = "ComfyUI-Kimara-AI-Advanced-Watermarks"
 description = "The KimaraAIWatermarker custom node allows you to apply watermark text and logo overlays to images and videos. Optionally, the watermark can be moved by the move_watermark_step amount of pixels after each generated image."
 version = "1.0.0"
 license = {file = "LICENSE"}

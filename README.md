@@ -39,6 +39,7 @@ _\*\* Rotation currently only affects the watermark image._
 | `move_watermark_step`   | `INT`              | The number of pixels the watermark moves in each step (default: 10).                                  |
 | `watermark_text`        | `STRING`           | The text to use as the watermark. If not provided, no text watermark will be applied.                 |
 | `font`                  | `STRING`           | The font used for the watermark text (default: `assets/fonts/DMSans-VariableFont_opsz,wght.ttf`).     |
+| `font_variation`        | `STRING`           | The font variation for the watermark text, such as Regular, Bold (if supported) (default: None).      |
 | `font_size`             | `INT`              | The font size for the watermark text (default: 16).                                                   |
 | `logo_scale_percentage` | `INT`              | The percentage of the image width to scale the logo watermark (default: 25).                          |
 | `x_padding`             | `INT`              | Horizontal padding for watermark positioning (default: 20).                                           |

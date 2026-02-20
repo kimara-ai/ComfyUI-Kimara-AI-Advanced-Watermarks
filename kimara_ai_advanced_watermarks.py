@@ -47,7 +47,6 @@ class KimaraAIBatchImages:
         
 
 class KimaraAIWatermarker:
-    
     def __init__(self):
         self.watermark_x = None
         self.watermark_y = None
@@ -57,14 +56,14 @@ class KimaraAIWatermarker:
         self.y_direction = -1
         self.rotation = 0
         self.current_resolution = None
-        self.previous_resolution = None  
+        self.previous_resolution = None
 
     @staticmethod
     def INPUT_TYPES():
         return {
             "required": {
                 "image": ("IMAGE",),
-                "move_watermark": ("BOOLEAN", [True, False])                
+                "move_watermark": ("BOOLEAN", [True, False])
             },
             "optional": {
                 "logo_image": ("IMAGE",),
@@ -72,6 +71,7 @@ class KimaraAIWatermarker:
                 "move_watermark_step": ("INT", {"default": 10, "min": 1, "max": 500, "step": 1}),
                 "watermark_text": ("STRING", {"multiline": False, "default": "Made by userxyz123", "lazy": True}),
                 "font": ("STRING", {"default": "assets/fonts/DMSans-VariableFont_opsz,wght.ttf"}),
+                "font_variation": ("STRING", {"default": "", "multiline": False}),
                 "font_size": ("INT", {"default": 16, "min": 1, "max": 256, "step": 1}),
                 "logo_scale_percentage": ("INT", {"default": 25, "min": 0, "max": 100, "step": 1}),
                 "x_padding": ("INT", {"default": 20, "min": 0, "max": 256, "step": 5}),
@@ -86,7 +86,7 @@ class KimaraAIWatermarker:
     FUNCTION = "execute"
     CATEGORY = "Kimara.ai"
 
-    def execute(self, image, move_watermark, logo_image=None, mask=None, move_watermark_step=10, watermark_text=None, font=None, font_size=16,
+    def execute(self, image, move_watermark, logo_image=None, mask=None, move_watermark_step=10, watermark_text=None, font=None, font_variation=None, font_size=16,
                 logo_scale_percentage=25, x_padding=20, y_padding=20, rotation=0, opacity=40):
 
         """
@@ -103,6 +103,7 @@ class KimaraAIWatermarker:
             :param move_watermark_step: The number of pixels the watermark moves in each step (default: 10).
             :param watermark_text: The text to be used as the watermark (default: None). If not provided, no text watermark is applied.
             :param font: The font used for watermark text (default: None).
+            :param font_variation: The font variation name (default: None).
             :param font_size: The size of the watermark text font (default: 16).
             :param logo_scale_percentage: The percentage of the image width to scale the logo watermark (default: 25).
             :param x_padding: Horizontal padding for watermark positioning (default: 20).
@@ -143,7 +144,7 @@ class KimaraAIWatermarker:
             self.reset_position(image_width, image_height, resized_logo_width, resized_logo_height, font_size, x_padding, y_padding)
             
         # Watermarking loop
-        images = self.apply_watermark_to_images(image, move_watermark, resized_logo_image, resized_logo_width, resized_logo_height, watermark_text, font, font_size, opacity, move_watermark_step,
+        images = self.apply_watermark_to_images(image, move_watermark, resized_logo_image, resized_logo_width, resized_logo_height, watermark_text, font, font_variation, font_size, opacity, move_watermark_step,
                                                 logo_image, mask, x_padding, y_padding, image_width, image_height)
 
         return (images,)
@@ -155,7 +156,7 @@ class KimaraAIWatermarker:
         self.text_x = image_width - x_padding
         self.text_y = image_height - y_padding
 
-    def apply_watermark_to_images(self, image, move_watermark, resized_logo_image, resized_logo_width, resized_logo_height, watermark_text, font, font_size, opacity, move_watermark_step,
+    def apply_watermark_to_images(self, image, move_watermark, resized_logo_image, resized_logo_width, resized_logo_height, watermark_text, font, font_variation, font_size, opacity, move_watermark_step,
                                 logo_image, mask, x_padding, y_padding, image_width, image_height):
         """
         Applies watermark text and a logo image to a batch of images, with optional movement of the watermark.
@@ -189,7 +190,7 @@ class KimaraAIWatermarker:
                 self.calculate_watermark_position(resized_logo_width, resized_logo_height, 0, font_size, image_width, image_height, move_watermark_step, x_padding, y_padding)
 
             # Apply text and logo to the image
-            image, text_width = self.draw_watermark_text(image, watermark_text, font_size, font, opacity)
+            image, text_width = self.draw_watermark_text(image, watermark_text, font_size, font, opacity, font_variation)
             watermarked_image = self.add_logo_image(image, resized_logo_image, opacity, mask)
 
             images.append(watermarked_image)
@@ -308,7 +309,7 @@ class KimaraAIWatermarker:
 
         return resized_logo_image, new_width, new_height
 
-    def draw_watermark_text(self, image_tensor, text, font_size, font_path, opacity):
+    def draw_watermark_text(self, image_tensor, text, font_size, font_path, opacity, font_variation=None):
 
         """
         Draws semi-transparent text on an image.
@@ -340,6 +341,12 @@ class KimaraAIWatermarker:
         # Load the specified font or fall back to the default font
         try:
             font = ImageFont.truetype(font_path, font_size)
+            # Apply named variation (e.g. font weight) if specified and font supports it
+            if font_variation:
+                try:
+                    font.set_variation_by_name(font_variation)
+                except (OSError, AttributeError):
+                    pass  # Not a variable font or variation not found — ignore silently
         except (IOError, OSError):
             print(f"Font '{font_path}' not found. Using the default font.")
             font = ImageFont.load_default()
